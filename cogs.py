@@ -15,13 +15,13 @@ class Config(Cog, name="Configuración"):
         self.client: BubuBot = bot
 
     @group(name='support')
-    async def support(self, ctx: Ctx) -> None:
+    async def support(self, _: Ctx) -> None:
         pass
 
     @support.command(name='setup')
     async def setup(self, ctx: Ctx) -> None:
         """Configura tu servidor o cambia la configuración ya disponible"""
-        cfg: Configuration | None = Configuration.filter(guild=ctx.guild.id).get_or_none()
+        cfg: Configuration | None = await Configuration.filter(guild=ctx.guild.id).get_or_none()
 
         if not cfg:
             cfg = Configuration(

@@ -12,12 +12,12 @@ from _types import BubuBot
 from env import TOKEN
 from cogs import Config
 
-bot = BubuBot(cogs=[Config])
+bot = BubuBot(cogs=[Config,])
 
 @bot.event
 async def on_ready() -> None:
     print(f"Conectado como {bot.user}")
-    print(f"Observando a {len(list(bot.get_all_members()))}")
+    print(f"Observando a {len(list(bot.get_all_members()))} miembros")
 
 @bot.event
 async def on_message(message: discord.Message) -> None:
@@ -30,9 +30,9 @@ async def on_message(message: discord.Message) -> None:
     if not message.guild:
         ...
 
-@bot.command()
+@bot.command(hidden=True)
 @is_owner()
-async def sync(self, ctx: Context, *, guild: Literal["^", "~"] = "~") -> None:
+async def sync(ctx: Context, *, guild: Literal["^", "~"] = "~") -> None:
     r"""Sincroniza los comandos de barra diagonal a este o a todos los servidores.
 
     Argumentos
