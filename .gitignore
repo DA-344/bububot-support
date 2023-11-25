@@ -1,3 +1,5 @@
 env.py
 __pycache__/
 venv/
+*.db-wal
+*.db-shm
