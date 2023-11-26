@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import discord
 from discord.ui import View, Select, Modal, TextInput, button, Button, select, ChannelSelect
+
 from models import Configuration
 
 class GuildsSelect(Select):
@@ -13,9 +14,9 @@ class GuildsSelect(Select):
     async def callback(self, interaction: discord.Interaction) -> None:
         value: int = int(self.values[0])
 
-        cfg: Configuration = Configuration.filter(guild=value).get()
+        cfg: Configuration = await Configuration.filter(guild=value).get_or_none()
 
-        if not cfg.enabled:
+        if not cfg.enabled or not cfg:
             await interaction.response.send_message('¡Este servidor no permite soporte vía MD! Inténtelo de nuevo.')
             return
 
@@ -27,27 +28,35 @@ class GuildsSelect(Select):
         guild = interaction.client.get_guild(value)
         channel = guild.get_channel(cfg.channel)
 
-        parent = await channel.create_thread(name=str(interaction.user.id), message=None, type=discord.ChannelType.private_thread, reason=f"Nuevo hilo de soporte de {interaction.user.id}", invitable=False)
+        parent = await channel.create_thread(name=f"soporte-{interaction.user.id}", message=None, type=discord.ChannelType.private_thread, reason=f"Nuevo hilo de soporte de {interaction.user.id}", invitable=False)
 
         v: UserToGuildView = UserToGuildView(parent=parent)
 
-        await interaction.response.edit_message(view=v, embed=embed)
+        await interaction.response.edit_message(view=v, embed=embed, content=None)
 
 class MutualGuilds(View):
+
     def __init__(self, author: discord.User) -> None:
-        super().__init__(timeout=None)
+        super().__init__(timeout=360)
 
         self.author: discord.User = author
+        self.mutual_guilds: list[discord.Guild] = author.mutual_guilds
+
+    @classmethod
+    async def init(cls, author: discord.User) -> MutualGuilds:
+
+        view = cls(author=author)
 
         actual_guilds: list[discord.Guild] = []
 
         for guild in author.mutual_guilds:
-            cfg = Configuration.filter(guild=guild.id).get_or_none()
+            cfg = await Configuration.filter(guild=guild.id).get_or_none()
 
             if cfg:
                 actual_guilds.append(guild)
 
-        self.add_item(GuildsSelect(actual_guilds))
+        view.add_item(GuildsSelect(actual_guilds))
+        return view
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return interaction.user.id == self.author.id
@@ -82,10 +91,10 @@ class UserToGuildView(View):
         super().__init__(timeout=None)
         self.parent: discord.Thread = parent
 
-    @button(label='Responder', custom_id='bububot:utg:reply', disabled=False, style=discord.ButtonStyle.gray, row=0)
+    @button(label='Responder', disabled=False, style=discord.ButtonStyle.gray, row=0)
     async def button_callback(self, interaction: discord.Interaction, button: Button) -> None:
         button.disabled = True
-        await interaction.edit_original_response(view=self)
+        await interaction.message.edit(view=self)
         await interaction.response.send_modal(_MessageModal(guild=False, object=self.parent, parent=self.parent))
         self.stop()
 
@@ -95,19 +104,17 @@ class GuildToUserView(View):
         self.user: discord.User = user
         self.parent: discord.Thread = parent
 
-    @button(label='Responder', custom_id='bububot:gtu:reply', disabled=False, style=discord.ButtonStyle.grey, row=0)
+    @button(label='Responder', disabled=False, style=discord.ButtonStyle.grey, row=0)
     async def button_callback(self, interaction: discord.Interaction, button: Button) -> None:
         button.disabled = True
-        self.solved.disabled = True
-        await interaction.edit_original_response(view=self)
+        await interaction.message.edit(view=self)
         await interaction.response.send_modal(_MessageModal(guild=True, object=self.user, parent=self.parent))
-        self.stop()
 
-    @button(label='Marcar como resuelto', custom_id='bububot:gtu:solved', disabled=False, style=discord.ButtonStyle.green, row=1)
+    @button(label='Marcar como resuelto', disabled=False, style=discord.ButtonStyle.green, row=1)
     async def solved(self, interaction: discord.Interaction, button: Button) -> None:
         button.disabled = True
         self.button_callback.disabled = True
-        await interaction.edit_original_response(view=self)
+        await interaction.message.edit(view=self)
         await interaction.response.send_message(f'Se ha marcado este hilo como resuelto por {interaction.user}, archivando...')
 
         await self.parent.edit(locked=True, archived=True)
@@ -126,11 +133,12 @@ class ChangeMessageModal(Modal):
     async def on_submit(self, interaction: discord.Interaction) -> None:
         self.cfg.message = self.msg.value
         await self.cfg.save()
-        await interaction.response.send_message(f'Se ha cambiado el mensaje a:\n```\n{self.msg.value}```')
+        await interaction.response.send_message(f'Se ha cambiado el mensaje a:\n```\n{self.msg.value}```', ephemeral=True)
 
 class ConfigurationView(View):
-    def __init__(self, config: Configuration) -> None:
+    def __init__(self, author: discord.User, config: Configuration) -> None:
         self.config: Configuration = config
+        self.author: discord.User = author
         super().__init__(timeout=360)
 
         if not self.config.enabled:
@@ -140,6 +148,15 @@ class ConfigurationView(View):
     async def on_timeout(self) -> None:
         for child in self.children:
             child.disabled = True
+
+    async def interaction_check(self, i: discord.Interaction) -> bool:
+        return i.user.id == self.author.id
+    
+    async def on_error(self, i: discord.Interaction, e: Exception, _: discord.ui.Item) -> None:
+        print(type(e))
+        if isinstance(e, discord.app_commands.errors.CheckFailure):
+            await i.response.send_message('Estos botones no son tuyos, por lo que no puedes interactuar con ellos', ephemeral=True)
+            return
 
     @button(label='Deshabilitar', style=discord.ButtonStyle.red, row=0, disabled=False)
     async def disable_or_enable(self, interaction: discord.Interaction, button: Button) -> None:
@@ -168,4 +185,4 @@ class ConfigurationView(View):
         self.config.channel = channel.id
         
         await self.config.save()
-        await interaction.response.send_message(f'Se ha establecido el canal de hilos de soporte a {channel.mention}')
+        await interaction.response.send_message(f'Se ha establecido el canal de hilos de soporte a {channel.mention}', ephemeral=True)

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import discord
-from discord.ext.commands import Cog, hybrid_group as group, Context as Ctx
+from discord.ext.commands import Cog, hybrid_group as group, Context as Ctx, guild_only
+from discord.app_commands import guild_only as app_guild_only
 
 from _types import BubuBot
 from views import ConfigurationView
 from models import Configuration
 
+@guild_only()
+@app_guild_only()
 class Config(Cog, name="Configuración"):
     r"""Comandos de configuración para servidores.
     """
@@ -29,4 +32,4 @@ class Config(Cog, name="Configuración"):
                 enabled=True
             )
 
-        await ctx.reply(embed=discord.Embed(title=f"Configuración de soporte de {ctx.guild.name}"), view=ConfigurationView(cfg))
+        await ctx.reply(embed=discord.Embed(title=f"Configuración de soporte de {ctx.guild.name}"), view=ConfigurationView(ctx.author, cfg))
