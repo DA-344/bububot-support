@@ -33,4 +33,4 @@ async def on_message(message: discord.Message) -> None:
             view=await MutualGuilds.init(message.author)
         )
 
-bot.run(TOKEN, log_level=logging.DEBUG)
+bot.run(TOKEN, log_level=logging.INFO)
