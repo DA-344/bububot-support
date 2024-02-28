@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import discord
-from discord.ui import View, Select, Modal, TextInput, button, Button, select, ChannelSelect
+from discord.ui import View, Select, Modal, TextInput, button, Button, select, ChannelSelect, RoleSelect
 
 from models import Configuration
 
@@ -29,6 +29,9 @@ class GuildsSelect(Select):
         channel = guild.get_channel(cfg.channel)
 
         parent = await channel.create_thread(name=f"soporte-{interaction.user.id}", message=None, type=discord.ChannelType.private_thread, reason=f"Nuevo hilo de soporte de {interaction.user.id}", invitable=False)
+        
+        if cfg.support_role:
+            await parent.send(f'<@&{cfg.support_role}> | Nuevo Hilo de Soporte de `{interaction.user.name}`')
 
         v: UserToGuildView = UserToGuildView(parent=parent)
 
@@ -186,3 +189,12 @@ class ConfigurationView(View):
         
         await self.config.save()
         await interaction.response.send_message(f'Se ha establecido el canal de hilos de soporte a {channel.mention}', ephemeral=True)
+
+    @select(cls=RoleSelect, placeholder='Elige el rol de soporte...', max_values=1, row=2)
+    async def roles(self, itx: discord.Interaction, select: RoleSelect['ConfigurationView']) -> None:
+        role = select.values[0]
+
+        self.config.support_role = role.id
+
+        await self.config.save()
+        await itx.response.send_message(f'Se ha establecido el rol de soporte a {role.mention}', ephemeral=True)

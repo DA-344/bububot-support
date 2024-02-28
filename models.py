@@ -8,3 +8,4 @@ class Configuration(Model):
     enabled = BooleanField(default=True)
     message = TextField(null=False, default="¡Gracias por contactar con el soporte! En breves le atenderemos...")
     channel = BigIntField(unique=True)
+    support_role = BigIntField(null=True, default=None)
